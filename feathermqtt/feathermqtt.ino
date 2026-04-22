@@ -85,6 +85,71 @@ Adafruit_MQTT_Publish insole = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds
 // Setup a feed called 'onoff' for subscribing to changes.
 Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/onoff");
 
+/****************************** RX/TX Setup ***************************************/
+static constexpr uint8_t kPortAGroup = 0;
+static constexpr uint8_t kPeripheralFunctionB = 1;
+
+static constexpr uint8_t kRxPortPin = 11;  // D0 / RX / PA11
+static constexpr uint8_t kTxPortPin = 10;  // D1 / TX / PA10
+
+static constexpr uint8_t kRxAdcChannel = 19;
+static constexpr uint8_t kTxAdcChannel = 18;
+
+static void syncADC() {
+  while (ADC->STATUS.bit.SYNCBUSY == 1) {}
+}
+
+static void disconnectSerial1Pads() {
+  SERCOM0->USART.CTRLA.bit.ENABLE = 0;
+  while (SERCOM0->USART.SYNCBUSY.bit.ENABLE) {}
+
+  SERCOM0->USART.CTRLB.reg = 0;
+  while (SERCOM0->USART.SYNCBUSY.bit.CTRLB) {}
+
+  SERCOM0->USART.CTRLA.bit.SWRST = 1;
+  while (SERCOM0->USART.SYNCBUSY.bit.SWRST || SERCOM0->USART.CTRLA.bit.SWRST) {}
+}
+
+static void routeRxTxPadsToAdc() {
+  PORT->Group[kPortAGroup].DIRCLR.reg = (1ul << kRxPortPin) | (1ul << kTxPortPin);
+  PORT->Group[kPortAGroup].OUTCLR.reg = (1ul << kRxPortPin) | (1ul << kTxPortPin);
+
+  PORT->Group[kPortAGroup].PINCFG[kRxPortPin].reg = PORT_PINCFG_PMUXEN;
+  PORT->Group[kPortAGroup].PINCFG[kTxPortPin].reg = PORT_PINCFG_PMUXEN;
+
+  PORT->Group[kPortAGroup].PMUX[kTxPortPin >> 1].reg =
+      PORT_PMUX_PMUXE(kPeripheralFunctionB) |
+      PORT_PMUX_PMUXO(kPeripheralFunctionB);
+}
+
+static uint16_t readAdcChannel(uint8_t channel) {
+  syncADC();
+  ADC->INPUTCTRL.bit.MUXPOS = channel;
+  syncADC();
+
+  ADC->CTRLA.bit.ENABLE = 1;
+  syncADC();
+
+  ADC->SWTRIG.bit.START = 1;
+  while (ADC->INTFLAG.bit.RESRDY == 0) {}
+  ADC->INTFLAG.reg = ADC_INTFLAG_RESRDY;
+
+  const uint16_t result = ADC->RESULT.reg;
+
+  ADC->CTRLA.bit.ENABLE = 0;
+  syncADC();
+
+  return result;
+}
+
+static uint16_t analogReadRXDirect() {
+  return readAdcChannel(kRxAdcChannel);
+}
+
+static uint16_t analogReadTXDirect() {
+  return readAdcChannel(kTxAdcChannel);
+}
+
 /*************************** Sketch Code ************************************/
 
 #define LEDPIN 13
@@ -94,14 +159,14 @@ Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAM
 #define LED2 11
 
 // Photodiodes
-#define PD1 A0
+#define PD1 A2
 #define PD2 A1
-#define PD3 A2
-#define PD4 A3
+#define PD3 3 //TX
+#define PD4 4 //RX
 #define PD5 A4
 #define PD6 A5
-#define PD7 14 // AIN18
-#define PD8 15 // AIN19
+#define PD7 A3
+#define PD8 A0
 
 const uint8_t pdPins[] = { PD1, PD2, PD3, PD4, PD5, PD6, PD7, PD8 };
 const char* pdNames[] = { "PD1", "PD2", "PD3", "PD4", "PD5", "PD6", "PD7", "PD8"};
@@ -144,6 +209,17 @@ Serial.println();
   digitalWrite(LED1, HIGH);
   digitalWrite(LED2, HIGH);
 
+  // read TX/RX
+  analogReadResolution(12);
+  analogReference(AR_DEFAULT);
+
+  pinMode(10, OUTPUT);
+  pinMode(11, OUTPUT);
+  digitalWrite(10, HIGH);
+  digitalWrite(11, HIGH);
+
+  disconnectSerial1Pads();
+  routeRxTxPadsToAdc();
 
   mqtt.subscribe(&onoffbutton);
 }
@@ -176,7 +252,18 @@ void loop() {
   payload[0] = '\0';  // reset CSV buffer
 
 for (uint8_t i = 0; i < NUM_PDS; i++) {
-  int value = analogRead(pdPins[i]);
+  //int value = analogRead(pdPins[i]);
+  int value;
+
+    if (i == 2) {
+      value = analogReadRXDirect();   // PD3 → RX
+    } 
+    else if (i == 3) {
+      value = analogReadTXDirect();   // PD4 → TX
+    } 
+    else {
+      value = analogRead(pdPins[i]);
+    }
 
   char num[8];
   snprintf(num, sizeof(num), "%d", value);
