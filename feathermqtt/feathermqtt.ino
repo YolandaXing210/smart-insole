@@ -59,7 +59,9 @@ int status = WL_IDLE_STATUS;
 
 /************************* Adafruit.io Setup *********************************/
 
-#define AIO_SERVER      "io.adafruit.com"
+// #define AIO_SERVER      "io.adafruit.com"
+// #define AIO_SERVERPORT  1883
+#define AIO_SERVER      "broker.hivemq.com"
 #define AIO_SERVERPORT  1883
 // REPLACE ME ADAFRUIT IO SETUP
 //#define AIO_USERNAME    "your adafruit io username"
@@ -80,10 +82,10 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname>
 
 // REPLACE ME IO FEED NAME
-Adafruit_MQTT_Publish insole = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/insole");
+Adafruit_MQTT_Publish insole = Adafruit_MQTT_Publish(&mqtt, "demihu/feeds/insole");
 
 // Setup a feed called 'onoff' for subscribing to changes.
-Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/onoff");
+Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, "demihu/feeds/onoff");
 
 /****************************** RX/TX Setup ***************************************/
 static constexpr uint8_t kPortAGroup = 0;
@@ -235,7 +237,7 @@ void loop() {
 
   // this is our 'wait for incoming subscription packets' busy subloop
   Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(5000))) {
+  while ((subscription = mqtt.readSubscription(100))) { // change this to increase speed
     if (subscription == &onoffbutton) {
       Serial.print(F("Got: "));
       Serial.println((char *)onoffbutton.lastread);
@@ -302,7 +304,7 @@ void MQTT_connect() {
     uint8_t timeout = 10;
     while (timeout && (WiFi.status() != WL_CONNECTED)) {
       timeout--;
-      delay(1000);
+      delay(1000);  
     }
 
     if (WiFi.status() == WL_CONNECTED) {
