@@ -1,589 +1,635 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Health Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
 
-    <style>
-        body {
-            margin: 0;
-            background: #26273b;
-            font-family: sans-serif;
-        }
 
-        /* MAIN LAYOUT */
+<title>SMART-INSOLE</title>
 
-        .dashboard-container {
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
-            display: flex;
-            height: 100vh;
-            width: 100vw;
-            border-radius: 0.5rem;
+<style>
 
-            padding: 4vh;
-            gap: 4vh;
+*{
+    box-sizing:border-box;
+}
 
-            box-sizing: border-box;
-        }
+body{
+    margin:0;
+    background:#000000;
+    color:white;
+    font-family:Arial, sans-serif;
 
+    width:100vw;
+    height:100vh;
+    overflow:hidden;
+    font-family: "Inter", sans-serif;
+}
 
-        /* LEFT PANEL */
+.main{
+    width:100%;
+    height:100%;
 
-        .left-panel {
+    display:flex;
+    flex-direction:row;
+}
 
-            width: 50%;
+/* ------------------------------------------------ */
+/* LEFT PANEL */
+/* ------------------------------------------------ */
 
-            display: flex;
-            flex-direction: column;
+.left-panel{
 
-            gap: 4vh;
-        }
+    flex:1;
 
+    height:100%;
 
-        /* LOGO */
+    padding:40px;
 
-        .logo-container {
+    display:flex;
+    flex-direction:column;
 
-            height: 12vh;
-            border: 0.15rem solid #3B4068;
-        }
+    gap:30px;
+}
 
+.title-section{
 
-        /* CONNECT BUTTON */
+    flex:0 0 auto;
+}
 
-        .connect-button-container {
+.title{
+    font-size:60px;
+    font-weight:700;
+    letter-spacing:4px;
+    color:white;
+}
 
-            display: flex;
-            justify-content: center;
-        }
+.subtitle{
+    font-size:24px;
+    font-weight:400;
+    letter-spacing:0px;
+    color:#868686;
+}
 
-        .connect-button {
+.bodytext{
+    font-size:16px;
+    font-weight:500;
+    letter-spacing:0px;
+    color:#ffffff;
+    margin-top: 5%;
+    margin-bottom: 5%;
+}
 
-            font-size: 1.2rem;
-            padding: 1vh 2vw;
-        }
+.reading-section{
 
+    flex:1;
 
-        /* PD READINGS */
+    display:flex;
+    flex-direction:column;
+}
 
-        .pd-reading-1,
-        .pd-reading-2 {
+.reading-label{
 
-            background: #3B4068;
+    color:white;
 
-            height: 20vh;
+    font-size:18px;
 
-            padding: 1.2vh;
+    margin-bottom:10px;
 
-            box-sizing: border-box;
-        }
+    font-weight:600;
+}
 
+.barplot{
+    width:100%;
+    height:100%;
+}
 
-        /* STATS */
+/* ------------------------------------------------ */
+/* RIGHT PANEL */
+/* ------------------------------------------------ */
 
-        .stats-container {
+.right-panel{
 
-            height: 10vh;
-            border: 0.15rem solid #3B4068;
-        }
+    height:100%;
 
+    padding-right:30px;
 
-        /* LOG AREA */
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    gap:40px;
+}
 
-        .log-container {
+.foot-column{
 
-            flex-grow: 1;
+    height:90vh;
 
-            border: 0.15rem solid #3B4068;
-        }
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
 
+.foot-title{
 
-        /* RIGHT PANEL */
+    color:white;
 
-        .right-panel {
+    font-size:18px;
 
-            width: 50%;
+    font-weight:700;
 
-            display: flex;
+    margin-bottom:12px;
 
-            gap: 4vh;
-        }
+    letter-spacing:2px;
+}
 
+.foot-plot{
 
-        /* FOOT GRID COLUMNS */
+    height:100%;
 
-        .footgrid-left,
-        .footgrid-right {
+    aspect-ratio:425 / 950;
+}
 
-            flex: 1;
-
-            display: flex;
-            flex-direction: column;
-
-            gap: 4vh;
-        }
-
-
-        /* LARGE FOOT PANELS */
-
-        .footgrid-main {
-            background: #3B4068;
-            flex: 5;
-            overflow: hidden;
-            position: relative;
-        }
-
-        #heatmap {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        .foot-graph {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-
-        /* SMALL FOOT PANELS */
-
-        .footgrid-summary {
-
-            background: #3B4068;
-
-            flex: 1;
-        }
-
-        /* PD BAR CHART */
-        .pd-chart {
-
-            display: flex;
-
-            height: 100%;
-            width: 100%;
-
-            border: 0.12rem solid #bfc6ff;
-            color: #bfc6ff;
-
-            padding: 1vh;
-
-            box-sizing: border-box;
-        }
-
-        .y-axis {
-
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            text-align: right;
-            font-size: 0.8rem;
-
-            margin-right: 1vw;
-        }
-
-        .bars-container {
-
-            flex: 1;
-
-            display: flex;
-
-            align-items: flex-end;
-
-            justify-content: space-between;
-
-            height: 100%;
-        }
-
-        .bar-group {
-
-            display: flex;
-            flex-direction: column;
-
-            justify-content: flex-end;
-
-            align-items: center;
-
-            height: 100%;
-            width: 10%;
-        }
-
-        .bar {
-
-            width: 70%;
-
-            background: #23fff0;
-
-            min-height: 2%;
-        }
-
-        .bar-label {
-
-            margin-top: 0.5vh;
-
-            font-size: 0.7rem;
-        }
-    </style>
-
+</style>
 </head>
-
-
-
 <body>
 
-    <div class="dashboard-container">
+<div class="main">
 
+    <!-- LEFT SIDE -->
+    <div class="left-panel">
 
-        <!-- LEFT SIDE -->
+        <!-- TITLE -->
+        <div class="title-section">
+            <div class="title">
+                SMART-INSOLE
+            </div>
+            <div class="subtitle">
+                Cornell Performance Apparel Design Lab
+            </div>
+            <div class="bodytext">
+                Spring 2026. Gait-tracking insoles using a grid of fiber-optic cables developed by Dr. Jeyeon Jo under Dr. Heeju Terry Park.
+                Data visualization developed by Demi Hu, Swar Sahgal, and Doyeon Kong. 
+            </div>
+        </div>
 
-        <div class="left-panel">
+        <!-- LEFT RAW -->
+        <div class="reading-section">
 
-            <div class="logo-container"></div>
-
-            <div class="connect-button-container">
-                <button class="connect-button">
-                    Connect
-                </button>
+            <div class="reading-label">
+                RAW READINGS — LEFT INSOLE
             </div>
 
-            <div class="pd-reading-1">
-                <div class="pd-chart">
-
-                    <div class="y-axis">
-                        <span>100</span>
-                        <span>75</span>
-                        <span>50</span>
-                        <span>25</span>
-                        <span>0</span>
-                    </div>
-
-                    <div class="bars-container">
-
-                        <div class="bar-group">
-                            <div id="1-PD1" class="bar" style="height:40%"></div>
-                            <div class="bar-label">PD1</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD2" class="bar" style="height:70%"></div>
-                            <div class="bar-label">PD2</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD3" class="bar" style="height:35%"></div>
-                            <div class="bar-label">PD3</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD4" class="bar" style="height:60%"></div>
-                            <div class="bar-label">PD4</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD5" class="bar" style="height:45%"></div>
-                            <div class="bar-label">PD5</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD6" class="bar" style="height:65%"></div>
-                            <div class="bar-label">PD6</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD7" class="bar" style="height:85%"></div>
-                            <div class="bar-label">PD7</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div id="1-PD8" class="bar" style="height:95%"></div>
-                            <div class="bar-label">PD8</div>
-                        </div>
-
-                    </div>
-
-                </div>
-            </div>
-
-            <div class="pd-reading-2">
-                <div class="pd-chart">
-
-                    <div class="y-axis">
-                        <span>100</span>
-                        <span>75</span>
-                        <span>50</span>
-                        <span>25</span>
-                        <span>0</span>
-                    </div>
-
-                    <div class="bars-container">
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD1</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD2</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD3</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD4</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD5</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD6</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD7</div>
-                        </div>
-
-                        <div class="bar-group">
-                            <div class="bar" style="height:0%"></div>
-                            <div class="bar-label">PD8</div>
-                        </div>
-
-                    </div>
-
-                </div>
-            </div>
-
-            <div class="stats-container"></div>
-
-            <div class="log-container"></div>
+            <div id="leftBars" class="barplot"></div>
 
         </div>
 
+        <!-- RIGHT RAW -->
+        <div class="reading-section">
 
-
-        <!-- RIGHT SIDE -->
-
-        <div class="right-panel">
-
-            <div class="footgrid-left">
-
-                <div class="footgrid-main">
-                    <canvas id="heatmap"></canvas>
-                    <svg class="foot-graph" viewBox="0 0 3.5 10.5" preserveAspectRatio="xMidYMid meet">
-
-                        <!-- Flip Y axis so 0 is bottom -->
-                        <g transform="scale(1,-1) translate(0,-10)">
-
-                            <!-- Vertical lines -->
-                            <line x1="0.5" y1="9.5" x2="1" y2="0" stroke="#23fff0" stroke-width="0.05" />
-
-                            <line x1="1.5" y1="10" x2="1.5" y2="0" stroke="#23fff0" stroke-width="0.05" />
-
-                            <line x1="2.75" y1="9" x2="2" y2="0" stroke="#23fff0" stroke-width="0.05" />
-
-                            <!-- Horizontal lines -->
-                            <line x1="0" y1="9" x2="3.25" y2="7.5" stroke="#23fff0" stroke-width="0.05" />
-
-                            <line x1="0" y1="7" x2="3.25" y2="6.5" stroke="#23fff0" stroke-width="0.05" />
-
-                            <line x1="0.5" y1="4.5" x2="2.75" y2="4.5" stroke="#23fff0" stroke-width="0.05" />
-
-                            <line x1="0.5" y1="3" x2="2.75" y2="2.75" stroke="#23fff0" stroke-width="0.05" />
-
-                            <line x1="0.25" y1="1.5" x2="2.75" y2="1.5" stroke="#23fff0" stroke-width="0.05" />
-
-                            <polyline points="
-    0.5,9.5
-    1.5,10
-    2.75,9
-    3.25,7.5
-    3.25,6.5
-    2.75,4.5
-    2.75,2.75
-    2.75,1.5
-    2,0
-    1.5,0
-    1,0
-    0.25,1.5
-    0.5,3
-    0.5,4.5
-    0,7
-    0,9
-    0.5,9.5
-    " fill="none" stroke="#ffffff" stroke-width="0.07" />
-
-
-    <!-- PD LABELS -->
-
-<text x="0.5" y="9.8" font-size="0.35" fill="#ffffff">PD1</text>
-<text x="1.5" y="10.3" font-size="0.35" fill="#ffffff">PD2</text>
-<text x="2.75" y="9.3" font-size="0.35" fill="#ffffff">PD3</text>
-
-<text x="3.25" y="7.7" font-size="0.35" fill="#ffffff">PD4</text>
-<text x="3.25" y="6.8" font-size="0.35" fill="#ffffff">PD5</text>
-<text x="2.75" y="4.7" font-size="0.35" fill="#ffffff">PD6</text>
-<text x="2.75" y="2.95" font-size="0.35" fill="#ffffff">PD7</text>
-<text x="2.75" y="1.8" font-size="0.35" fill="#ffffff">PD8</text>
-
-                        </g>
-
-                    </svg>
-
-
-                </div>
-
-                <div class="footgrid-summary"></div>
-
+            <div class="reading-label">
+                RAW READINGS — RIGHT INSOLE
             </div>
 
-
-            <div class="footgrid-right">
-
-                <div class="footgrid-main"></div>
-
-                <div class="footgrid-summary"></div>
-
-            </div>
+            <div id="rightBars" class="barplot"></div>
 
         </div>
-
-
 
     </div>
 
-    <script>
-document.addEventListener("DOMContentLoaded", () => {
-    const canvas = document.getElementById("heatmap");
-    const ctx = canvas.getContext("2d");
+    <!-- RIGHT SIDE -->
+    <div class="right-panel">
 
-    function resizeCanvas() {
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
+        <div class="foot-column">
 
-    const verticalPos = [0.75, 1.5, 2.5];
-    const horizontalPos = [8.5, 6.75, 4.5, 2.9, 1.5];
+            <div class="foot-title">
+                LEFT FOOT
+            </div>
 
-    function gaussian(d, sigma) {
-        return Math.exp(-(d * d) / (2 * sigma * sigma));
-    }
+            <div id="leftFoot" class="foot-plot"></div>
 
-    function drawHeatmap(vertical, horizontal) {
-        const w = canvas.width;
-        const h = canvas.height;
-        const grid = 80;
+        </div>
 
-        ctx.clearRect(0, 0, w, h);
+        <div class="foot-column">
 
-        for (let i = 0; i < grid; i++) {
-            for (let j = 0; j < grid; j++) {
+            <div class="foot-title">
+                RIGHT FOOT
+            </div>
 
-                const x = (i / grid) * 3.5;
-                const y = (j / grid) * 10;
+            <div id="rightFoot" class="foot-plot"></div>
 
-                let vx = 0;
-                let hy = 0;
+        </div>
 
-                verticalPos.forEach((px, k) => {
-                    vx += (vertical[k] || 0) * gaussian(x - px, 0.35);
-                });
+    </div>
 
-                horizontalPos.forEach((py, k) => {
-                    hy += (horizontal[k] || 0) * gaussian(y - py, 0.6);
-                });
+</div>
 
-                const intensity = (vx * hy) / 10000;
+<script>
 
-                if (intensity > 0.02) {
-                    const alpha = Math.min(intensity * 2, 1);
+// --------------------------------------------------
+// DATA (RIGHT FOOT BASE)
+// --------------------------------------------------
 
-                    ctx.fillStyle = `rgba(35,255,240,${alpha})`;
-                    ctx.fillRect(
-                        i * (w / grid),
-                        h - j * (h / grid),
-                        w / grid,
-                        h / grid
-                    );
-                }
-            }
-        }
+const lines_right = {
+    pd1: [[16, 1], [16, 44]],
+    pd2: [[12, 0], [10, 49]],
+    pd3: [[9, 1], [5, 47]],
+    pd4: [[6, 6], [18, 6]],
+    pd5: [[7, 14], [18, 14]],
+    pd6: [[6, 24], [18, 24]],
+    pd7: [[2, 30], [19, 30]],
+    pd8: [[1, 38], [19, 38]],
+};
+
+// mirror x → true left-foot geometry
+function mirrorX(linesObj, maxX = 20) {
+
+    const mirrored = {};
+
+    for (const key in linesObj) {
+        mirrored[key] = linesObj[key].map(([x, y]) => [maxX - x, y]);
     }
 
-    const ws = new WebSocket("ws://localhost:6789");
-
-    ws.onopen = () => console.log("Connected to Python WebSocket bridge");
-
-    ws.onmessage = (event) => {
-
-        let values;
-        try {
-            values = JSON.parse(event.data);
-        } catch (e) {
-            console.error("Bad data:", event.data);
-            return;
-        }
-
-        // FORCE 8 VALUES ALWAYS (prevents UI break)
-        values = Array.from({ length: 8 }, (_, i) => values[i] ?? 0);
-
-        // Normalize for UI (assumes raw ADC like 0–1023 or 0–4095)
-        const MIN = 1000;
-const MAX = 3000;
-
-function normalize(v) {
-    // clamp to range first
-    v = Math.max(MIN, Math.min(MAX, v));
-
-    // map to 0–100
-    return ((v - MIN) / (MAX - MIN)) * 100;
+    return mirrored;
 }
 
-const normalized = values.map(normalize);
+const lines_left = mirrorX(lines_right, 20);
 
-        // update bar chart
-        normalized.forEach((val, i) => {
-            const div = document.getElementById(`1-PD${i + 1}`);
-            if (div) {
-                div.style.height = `${Math.min(val, 100)}%`;
-            }
-        });
+// weights
+let weights_right = {
+    pd1: 0,
+    pd2: 0,
+    pd3: 0,
+    pd4: 0,
+    pd5: 0,
+    pd6: 0,
+    pd7: 0,
+    pd8: 0,
+};
 
-        // split sensors
-        const vertical = [
-            normalized[1],
-            normalized[6],
-            normalized[4]
-        ];
+let weights_left = {
+    pd1: 0,
+    pd2: 0,
+    pd3: 0,
+    pd4: 0,
+    pd5: 0,
+    pd6: 0,
+    pd7: 0,
+    pd8: 0,
+};
 
-        const horizontal = [
-            normalized[0],
-            normalized[3],
-            normalized[2],
-            normalized[5],
-            normalized[7]
-        ];
+// --------------------------------------------------
+// GRID
+// --------------------------------------------------
 
-        drawHeatmap(vertical, horizontal);
+const W = 30;
+const H = 75;
+
+const x = linspace(0, 20, W);
+const y = linspace(0, 50, H);
+
+// --------------------------------------------------
+// UTILS
+// --------------------------------------------------
+
+function linspace(start, end, n){
+    const arr = [];
+    const step = (end - start) / (n - 1);
+
+    for(let i = 0; i < n; i++){
+        arr.push(start + step * i);
+    }
+    return arr;
+}
+
+function gaussian(v, mu, sigma){
+    return Math.exp(-0.5 * ((v - mu) / sigma) ** 2);
+}
+
+function smooth1D(arr){
+    const out = [];
+
+    for(let i = 0; i < arr.length; i++){
+        let sum = 0;
+        let wsum = 0;
+
+        for(let k = -3; k <= 3; k++){
+            const idx = i + k;
+            if(idx < 0 || idx >= arr.length) continue;
+
+            const w = gaussian(k, 0, 1.5);
+            sum += arr[idx] * w;
+            wsum += w;
+        }
+
+        out.push(sum / wsum);
+    }
+
+    return out;
+}
+
+// --------------------------------------------------
+// PROFILE BUILDER (GENERIC)
+// --------------------------------------------------
+
+function buildProfile(axis, linesMap, weightsMap, sigma = (3)){
+
+    let profile = new Array(axis.length).fill(0);
+
+    for(const key in linesMap){
+
+        const pos = linesMap[key];
+
+        for(let i = 0; i < axis.length; i++){
+            profile[i] +=
+                weightsMap[key] *
+                gaussian(axis[i], pos, sigma);
+        }
+    }
+
+    return smooth1D(profile);
+}
+
+// --------------------------------------------------
+// PRESSURE (GENERIC)
+// --------------------------------------------------
+
+function buildPressure(linesMap, weightsMap){
+
+    const V = buildProfile(x, linesMapVertical(linesMap), weightsMap);
+    const Hh = buildProfile(y, linesMapHorizontal(linesMap), weightsMap);
+
+    let pressure = [];
+
+    for(let yi = 0; yi < H; yi++){
+        let row = [];
+
+        for(let xi = 0; xi < W; xi++){
+            row.push(Hh[yi] * V[xi]);
+        }
+
+        pressure.push(row);
+    }
+
+    return pressure;
+}
+
+// helper: split vertical/horizontal from full lines object
+function linesMapVertical(linesObj){
+    return {
+        pd1: linesObj.pd1[0][0],
+        pd2: linesObj.pd2[0][0],
+        pd3: linesObj.pd3[0][0],
     };
-});
-</script>
-</body>
+}
 
+function linesMapHorizontal(linesObj){
+    return {
+        pd4: linesObj.pd4[0][1],
+        pd5: linesObj.pd5[0][1],
+        pd6: linesObj.pd6[0][1],
+        pd7: linesObj.pd7[0][1],
+        pd8: linesObj.pd8[0][1],
+    };
+}
+
+// --------------------------------------------------
+// FOOT MASK (SEPARATE PER FOOT)
+// --------------------------------------------------
+
+function buildPoly(linesObj){
+
+    const pts = [];
+
+    for(const key in linesObj){
+        pts.push(linesObj[key][0]);
+        pts.push(linesObj[key][1]);
+    }
+
+    const center = [
+        pts.reduce((a,p)=>a+p[0],0)/pts.length,
+        pts.reduce((a,p)=>a+p[1],0)/pts.length
+    ];
+
+    pts.sort((a,b)=>{
+        return Math.atan2(a[1]-center[1], a[0]-center[0]) -
+               Math.atan2(b[1]-center[1], b[0]-center[0]);
+    });
+
+    return pts;
+}
+
+function pointInPoly(px, py, poly){
+
+    let inside = false;
+
+    for(let i = 0; i < poly.length; i++){
+
+        const [x1, y1] = poly[i];
+        const [x2, y2] = poly[(i + 1) % poly.length];
+
+        const hit =
+            ((y1 > py) !== (y2 > py)) &&
+            (px < (x2 - x1) * (py - y1) / (y2 - y1 + 1e-9) + x1);
+
+        if(hit) inside = !inside;
+    }
+
+    return inside;
+}
+
+function applyMask(pressure, poly){
+
+    for(let yi = 0; yi < H; yi++){
+        for(let xi = 0; xi < W; xi++){
+
+            if(!pointInPoly(x[xi], y[yi], poly)){
+                pressure[yi][xi] = null;
+            }
+        }
+    }
+
+    return pressure;
+}
+
+// --------------------------------------------------
+// HEATMAP
+// --------------------------------------------------
+
+function generateHeatmap(linesObj, weightsMap){
+
+    const poly = buildPoly(linesObj);
+
+    let pressure = buildPressure(linesObj, weightsMap);
+    pressure = applyMask(pressure, poly);
+
+    return {
+        z: pressure,
+        x: x,
+        y: y,
+        type: "heatmap",
+        colorscale: [
+            [0.0, "#5a5a5a"],
+            [0.08, "#7a0000"],
+            [0.25, "#ff0000"],
+            [0.55, "#ff8800"],
+            [1.0, "#ffff66"]
+        ],
+        zsmooth: false,
+        xgap: 1,
+        ygap: 1,
+        showscale: false
+    };
+}
+
+// --------------------------------------------------
+// LAYOUT
+// --------------------------------------------------
+
+const footLayout = {
+    autosize:true,
+    paper_bgcolor:"#000000",
+    plot_bgcolor:"#2a2a2a",
+    margin:{l:10,r:10,t:10,b:10},
+    xaxis:{range:[0,20],visible:false},
+    yaxis:{range:[0,50],visible:false,scaleanchor:"x"}
+};
+
+// --------------------------------------------------
+// BAR CHART
+// --------------------------------------------------
+
+function makeBarData(weights){
+
+    return [{
+        type:"bar",
+        x:["PD1","PD2","PD3","PD4","PD5","PD6","PD7","PD8"],
+        y:[
+            weights.pd1,
+            weights.pd2,
+            weights.pd3,
+            weights.pd4,
+            weights.pd5,
+            weights.pd6,
+            weights.pd7,
+            weights.pd8
+        ],
+        marker:{color:"#ff2222"}
+    }];
+}
+
+const barLayout = {
+    autosize:true,
+    paper_bgcolor:"#000000",
+    plot_bgcolor:"#2a2a2a",
+    margin:{l:40,r:20,t:10,b:40},
+    xaxis:{tickfont:{color:"white"}},
+    yaxis:{range:[0,100],gridcolor:"#333",tickfont:{color:"white"}}
+};
+
+// --------------------------------------------------
+// INIT
+// --------------------------------------------------
+
+Plotly.newPlot("leftFoot",
+    [generateHeatmap(lines_left, weights_left)],
+    footLayout,{responsive:true}
+);
+
+Plotly.newPlot("rightFoot",
+    [generateHeatmap(lines_right, weights_right)],
+    footLayout,{responsive:true}
+);
+
+Plotly.newPlot("leftBars",
+    makeBarData(weights_left),
+    barLayout,{responsive:true}
+);
+
+Plotly.newPlot("rightBars",
+    makeBarData(weights_right),
+    barLayout,{responsive:true}
+);
+
+// --------------------------------------------------
+// LIVE WEBSOCKET STREAM
+// --------------------------------------------------
+
+function remap(value, inMin, inMax, outMin = 0, outMax = 100) {
+    return ((value - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin;
+}
+
+const ws = new WebSocket("ws://localhost:6790");
+
+ws.onopen = () => {
+    console.log("WebSocket connected to Python backend");
+};
+
+ws.onmessage = (event) => {
+
+    const values = JSON.parse(event.data);
+
+    if (!Array.isArray(values) || values.length !== 8) return;
+
+    // remap 1000–3000 → 0–100
+    const normalized = values.map(v => {
+    if (v < 700) return 0;
+    return remap(v, 2000, 1000);
+});
+
+    weights_right = {
+        pd1: normalized[0],
+        pd2: normalized[1],
+        pd3: normalized[2],
+        pd4: normalized[3],
+        pd5: normalized[4],
+        pd6: normalized[5],
+        pd7: normalized[6],
+        pd8: normalized[7],
+    };
+
+    // optional: keep left foot empty
+    weights_left = {
+        pd1: 0.000001,
+        pd2: 0.000001,
+        pd3: 0.000001,
+        pd4: 0.000001,
+        pd5: 0.000001,
+        pd6: 0.000001,
+        pd7: 0.000001,
+        pd8: 0.000001,
+    };
+
+    Plotly.react("rightFoot",
+        [generateHeatmap(lines_right, weights_right)],
+        footLayout);
+
+    Plotly.react("rightBars",
+        makeBarData(weights_right),
+        barLayout);
+
+    Plotly.react("leftFoot",
+        [generateHeatmap(lines_left, weights_left)],
+        footLayout);
+
+    Plotly.react("leftBars",
+        makeBarData(weights_left),
+        barLayout);
+};
+
+ws.onerror = (err) => {
+    console.error("WebSocket error:", err);
+};
+
+ws.onclose = () => {
+    console.log("WebSocket disconnected");
+};
+
+</script>
+
+</body>
 </html>

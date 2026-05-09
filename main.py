@@ -63,8 +63,8 @@ async def main():
     loop = asyncio.get_running_loop()
 
     # WebSocket server
-    server = await websockets.serve(ws_handler, "localhost", 6789)
-    print("WebSocket server running on ws://localhost:6789")
+    server = await websockets.serve(ws_handler, "localhost", 6790)
+    print("WebSocket server running on ws://localhost:6790")
 
     # MQTT loop in background thread
     threading.Thread(target=mqtt_client.loop_forever, daemon=True).start()

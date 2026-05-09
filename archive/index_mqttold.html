@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Health Dashboard</title>
+
+    <style>
+        body {
+            margin: 0;
+            background: #26273b;
+            font-family: sans-serif;
+        }
+
+        /* MAIN LAYOUT */
+
+        .dashboard-container {
+
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            border-radius: 0.5rem;
+
+            padding: 4vh;
+            gap: 4vh;
+
+            box-sizing: border-box;
+        }
+
+
+        /* LEFT PANEL */
+
+        .left-panel {
+
+            width: 50%;
+
+            display: flex;
+            flex-direction: column;
+
+            gap: 4vh;
+        }
+
+
+        /* LOGO */
+
+        .logo-container {
+
+            height: 12vh;
+            border: 0.15rem solid #3B4068;
+        }
+
+
+        /* CONNECT BUTTON */
+
+        .connect-button-container {
+
+            display: flex;
+            justify-content: center;
+        }
+
+        .connect-button {
+
+            font-size: 1.2rem;
+            padding: 1vh 2vw;
+        }
+
+
+        /* PD READINGS */
+
+        .pd-reading-1,
+        .pd-reading-2 {
+
+            background: #3B4068;
+
+            height: 20vh;
+
+            padding: 1.2vh;
+
+            box-sizing: border-box;
+        }
+
+
+        /* STATS */
+
+        .stats-container {
+
+            height: 10vh;
+            border: 0.15rem solid #3B4068;
+        }
+
+
+        /* LOG AREA */
+
+        .log-container {
+
+            flex-grow: 1;
+
+            border: 0.15rem solid #3B4068;
+        }
+
+
+        /* RIGHT PANEL */
+
+        .right-panel {
+
+            width: 50%;
+
+            display: flex;
+
+            gap: 4vh;
+        }
+
+
+        /* FOOT GRID COLUMNS */
+
+        .footgrid-left,
+        .footgrid-right {
+
+            flex: 1;
+
+            display: flex;
+            flex-direction: column;
+
+            gap: 4vh;
+        }
+
+
+        /* LARGE FOOT PANELS */
+
+        .footgrid-main {
+            background: #3B4068;
+            flex: 5;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #heatmap {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .foot-graph {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+
+        /* SMALL FOOT PANELS */
+
+        .footgrid-summary {
+
+            background: #3B4068;
+
+            flex: 1;
+        }
+
+        /* PD BAR CHART */
+        .pd-chart {
+
+            display: flex;
+
+            height: 100%;
+            width: 100%;
+
+            border: 0.12rem solid #bfc6ff;
+            color: #bfc6ff;
+
+            padding: 1vh;
+
+            box-sizing: border-box;
+        }
+
+        .y-axis {
+
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            text-align: right;
+            font-size: 0.8rem;
+
+            margin-right: 1vw;
+        }
+
+        .bars-container {
+
+            flex: 1;
+
+            display: flex;
+
+            align-items: flex-end;
+
+            justify-content: space-between;
+
+            height: 100%;
+        }
+
+        .bar-group {
+
+            display: flex;
+            flex-direction: column;
+
+            justify-content: flex-end;
+
+            align-items: center;
+
+            height: 100%;
+            width: 10%;
+        }
+
+        .bar {
+
+            width: 70%;
+
+            background: #23fff0;
+
+            min-height: 2%;
+        }
+
+        .bar-label {
+
+            margin-top: 0.5vh;
+
+            font-size: 0.7rem;
+        }
+    </style>
+
+</head>
+
+
+
+<body>
+
+    <div class="dashboard-container">
+
+
+        <!-- LEFT SIDE -->
+
+        <div class="left-panel">
+
+            <div class="logo-container"></div>
+
+            <div class="connect-button-container">
+                <button class="connect-button">
+                    Connect
+                </button>
+            </div>
+
+            <div class="pd-reading-1">
+                <div class="pd-chart">
+
+                    <div class="y-axis">
+                        <span>100</span>
+                        <span>75</span>
+                        <span>50</span>
+                        <span>25</span>
+                        <span>0</span>
+                    </div>
+
+                    <div class="bars-container">
+
+                        <div class="bar-group">
+                            <div id="1-PD1" class="bar" style="height:40%"></div>
+                            <div class="bar-label">PD1</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD2" class="bar" style="height:70%"></div>
+                            <div class="bar-label">PD2</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD3" class="bar" style="height:35%"></div>
+                            <div class="bar-label">PD3</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD4" class="bar" style="height:60%"></div>
+                            <div class="bar-label">PD4</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD5" class="bar" style="height:45%"></div>
+                            <div class="bar-label">PD5</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD6" class="bar" style="height:65%"></div>
+                            <div class="bar-label">PD6</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD7" class="bar" style="height:85%"></div>
+                            <div class="bar-label">PD7</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div id="1-PD8" class="bar" style="height:95%"></div>
+                            <div class="bar-label">PD8</div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="pd-reading-2">
+                <div class="pd-chart">
+
+                    <div class="y-axis">
+                        <span>100</span>
+                        <span>75</span>
+                        <span>50</span>
+                        <span>25</span>
+                        <span>0</span>
+                    </div>
+
+                    <div class="bars-container">
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD1</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD2</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD3</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD4</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD5</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD6</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD7</div>
+                        </div>
+
+                        <div class="bar-group">
+                            <div class="bar" style="height:0%"></div>
+                            <div class="bar-label">PD8</div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="stats-container"></div>
+
+            <div class="log-container"></div>
+
+        </div>
+
+
+
+        <!-- RIGHT SIDE -->
+
+        <div class="right-panel">
+
+            <div class="footgrid-left">
+
+                <div class="footgrid-main">
+                    <canvas id="heatmap"></canvas>
+                    <svg class="foot-graph" viewBox="0 0 3.5 10.5" preserveAspectRatio="xMidYMid meet">
+
+                        <!-- Flip Y axis so 0 is bottom -->
+                        <g transform="scale(1,-1) translate(0,-10)">
+
+                            <!-- Vertical lines -->
+                            <line x1="0.5" y1="9.5" x2="1" y2="0" stroke="#23fff0" stroke-width="0.05" />
+
+                            <line x1="1.5" y1="10" x2="1.5" y2="0" stroke="#23fff0" stroke-width="0.05" />
+
+                            <line x1="2.75" y1="9" x2="2" y2="0" stroke="#23fff0" stroke-width="0.05" />
+
+                            <!-- Horizontal lines -->
+                            <line x1="0" y1="9" x2="3.25" y2="7.5" stroke="#23fff0" stroke-width="0.05" />
+
+                            <line x1="0" y1="7" x2="3.25" y2="6.5" stroke="#23fff0" stroke-width="0.05" />
+
+                            <line x1="0.5" y1="4.5" x2="2.75" y2="4.5" stroke="#23fff0" stroke-width="0.05" />
+
+                            <line x1="0.5" y1="3" x2="2.75" y2="2.75" stroke="#23fff0" stroke-width="0.05" />
+
+                            <line x1="0.25" y1="1.5" x2="2.75" y2="1.5" stroke="#23fff0" stroke-width="0.05" />
+
+                            <polyline points="
+    0.5,9.5
+    1.5,10
+    2.75,9
+    3.25,7.5
+    3.25,6.5
+    2.75,4.5
+    2.75,2.75
+    2.75,1.5
+    2,0
+    1.5,0
+    1,0
+    0.25,1.5
+    0.5,3
+    0.5,4.5
+    0,7
+    0,9
+    0.5,9.5
+    " fill="none" stroke="#ffffff" stroke-width="0.07" />
+
+
+    <!-- PD LABELS -->
+
+<text x="0.5" y="9.8" font-size="0.35" fill="#ffffff">PD1</text>
+<text x="1.5" y="10.3" font-size="0.35" fill="#ffffff">PD2</text>
+<text x="2.75" y="9.3" font-size="0.35" fill="#ffffff">PD3</text>
+
+<text x="3.25" y="7.7" font-size="0.35" fill="#ffffff">PD4</text>
+<text x="3.25" y="6.8" font-size="0.35" fill="#ffffff">PD5</text>
+<text x="2.75" y="4.7" font-size="0.35" fill="#ffffff">PD6</text>
+<text x="2.75" y="2.95" font-size="0.35" fill="#ffffff">PD7</text>
+<text x="2.75" y="1.8" font-size="0.35" fill="#ffffff">PD8</text>
+
+                        </g>
+
+                    </svg>
+
+
+                </div>
+
+                <div class="footgrid-summary"></div>
+
+            </div>
+
+
+            <div class="footgrid-right">
+
+                <div class="footgrid-main"></div>
+
+                <div class="footgrid-summary"></div>
+
+            </div>
+
+        </div>
+
+
+
+    </div>
+
+    <script>
+document.addEventListener("DOMContentLoaded", () => {
+    const canvas = document.getElementById("heatmap");
+    const ctx = canvas.getContext("2d");
+
+    function resizeCanvas() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    const verticalPos = [0.75, 1.5, 2.5];
+    const horizontalPos = [8.5, 6.75, 4.5, 2.9, 1.5];
+
+    function gaussian(d, sigma) {
+        return Math.exp(-(d * d) / (2 * sigma * sigma));
+    }
+
+    function drawHeatmap(vertical, horizontal) {
+        const w = canvas.width;
+        const h = canvas.height;
+        const grid = 80;
+
+        ctx.clearRect(0, 0, w, h);
+
+        for (let i = 0; i < grid; i++) {
+            for (let j = 0; j < grid; j++) {
+
+                const x = (i / grid) * 3.5;
+                const y = (j / grid) * 10;
+
+                let vx = 0;
+                let hy = 0;
+
+                verticalPos.forEach((px, k) => {
+                    vx += (vertical[k] || 0) * gaussian(x - px, 0.35);
+                });
+
+                horizontalPos.forEach((py, k) => {
+                    hy += (horizontal[k] || 0) * gaussian(y - py, 0.6);
+                });
+
+                const intensity = (vx * hy) / 10000;
+
+                if (intensity > 0.02) {
+                    const alpha = Math.min(intensity * 2, 1);
+
+                    ctx.fillStyle = `rgba(35,255,240,${alpha})`;
+                    ctx.fillRect(
+                        i * (w / grid),
+                        h - j * (h / grid),
+                        w / grid,
+                        h / grid
+                    );
+                }
+            }
+        }
+    }
+
+    const ws = new WebSocket("ws://localhost:6789");
+
+    ws.onopen = () => console.log("Connected to Python WebSocket bridge");
+
+    ws.onmessage = (event) => {
+
+        let values;
+        try {
+            values = JSON.parse(event.data);
+        } catch (e) {
+            console.error("Bad data:", event.data);
+            return;
+        }
+
+        // FORCE 8 VALUES ALWAYS (prevents UI break)
+        values = Array.from({ length: 8 }, (_, i) => values[i] ?? 0);
+
+        // Normalize for UI (assumes raw ADC like 0–1023 or 0–4095)
+        const MIN = 1000;
+const MAX = 3000;
+
+function normalize(v) {
+    // clamp to range first
+    v = Math.max(MIN, Math.min(MAX, v));
+
+    // map to 0–100
+    return ((v - MIN) / (MAX - MIN)) * 100;
+}
+
+const normalized = values.map(normalize);
+
+        // update bar chart
+        normalized.forEach((val, i) => {
+            const div = document.getElementById(`1-PD${i + 1}`);
+            if (div) {
+                div.style.height = `${Math.min(val, 100)}%`;
+            }
+        });
+
+        // split sensors
+        const vertical = [
+            normalized[1],
+            normalized[6],
+            normalized[4]
+        ];
+
+        const horizontal = [
+            normalized[0],
+            normalized[3],
+            normalized[2],
+            normalized[5],
+            normalized[7]
+        ];
+
+        drawHeatmap(vertical, horizontal);
+    };
+});
+</script>
+</body>
+
+</html>
