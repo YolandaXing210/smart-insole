@@ -575,10 +575,23 @@ ws.onmessage = (event) => {
 
     if (!Array.isArray(values) || values.length !== 8) return;
 
-    // remap 1000–3000 → 0–100
+
+    // notes for testing
+    // pd7 and pd8 dead on skate; always reading about 620-625
+    // the ideal range for live pds is 4000 without pressure and 2000 with pressure
+    // however seems like sometimes it goes from 2000-1000?
+    // and when it is put into a dark environment it seems like it dips all the way down to 800 without pressure
+    // and down to 630 even when without pressure which is an issue because then they read the same as the dead pds
+    // and actual plantar pressure isn't enough to change the reading at all.
     const normalized = values.map(v => {
-    if (v < 700) return 0;
-    return remap(v, 2000, 1000);
+    // the only reason to change this is to basically filter out "dead" photodiodes from the datavis. whatever ur get from pd7 and 8 put here.
+    if (v < 630) return 0; // overall minimum number, anything below this means its pure black/no data. 
+    
+    // this is what to change to affect visualization since the color range is mapped from the max to the min.
+    // this doesn't affect your raw reading at all; reference that for ground truth still.
+    // eg. if you put values 4000-1000 below but you're actually only receiving values 2000-1000, you'll just
+    // get the lower end of the color gradient rather than the full dark red-yellow range, that's all.
+    return remap(v, 1500, 630); // for better visualization, map this from the actual max ur getting to the actual min
 });
 
     weights_right = {
