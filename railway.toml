@@ -1,0 +1,2 @@
+[deploy]
+startCommand = "python3 mqtt_ws_service.py"

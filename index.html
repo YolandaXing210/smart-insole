@@ -76,6 +76,14 @@ body{
     color:#868686;
 }
 
+.connection-status{
+    margin-top:18px;
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:0.4px;
+    color:#ffb347;
+}
+
 .bodytext{
     font-size:16px;
     font-weight:500;
@@ -170,6 +178,9 @@ body{
             </div>
             <div class="subtitle">
                 Cornell Performance Apparel Design Lab
+            </div>
+            <div id="connectionStatus" class="connection-status">
+                Connecting to local bridge...
             </div>
             <div class="bodytext">
                 Spring 2026. Gait-tracking insoles using a grid of fiber-optic cables developed by Dr. Jeyeon Jo under Dr. Heeju Terry Park.
@@ -563,22 +574,46 @@ function remap(value, inMin, inMax, outMin = 0, outMax = 100) {
     return ((value - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin;
 }
 
-const ws = new WebSocket("ws://localhost:6790");
+const statusEl = document.getElementById("connectionStatus");
+const params = new URLSearchParams(window.location.search);
+const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+const wsHost = params.get("wsHost") || window.location.hostname || "localhost";
+const wsPort = params.get("wsPort") || "8884";
+const wsOverride = params.get("ws");
+
+let wsUrl = wsOverride;
+
+if (!wsUrl) {
+    if (window.location.protocol === "file:") {
+        wsUrl = `ws://localhost:${wsPort}`;
+    } else {
+        const needsExplicitPort = !!params.get("wsPort");
+        const portSuffix = needsExplicitPort ? `:${wsPort}` : "";
+        wsUrl = `${wsProtocol}://${wsHost}${portSuffix}`;
+    }
+}
+
+console.log("Connecting to WebSocket:", wsUrl);
+
+const ws = new WebSocket(wsUrl);
 
 ws.onopen = () => {
     console.log("WebSocket connected to Python backend");
+    statusEl.textContent = `Connected to ${wsUrl}`;
+    statusEl.style.color = "#7CFC84";
 };
 
 ws.onmessage = (event) => {
 
     const values = JSON.parse(event.data);
+    console.log("Received sensor values:", values);
 
     if (!Array.isArray(values) || values.length !== 8) return;
 
     // remap 1000–3000 → 0–100
     const normalized = values.map(v => {
     if (v < 700) return 0;
-    return remap(v, 2000, 1000);
+    return Math.max(0, Math.min(100, remap(v, 2000, 1000)));
 });
 
     weights_right = {
@@ -623,10 +658,14 @@ ws.onmessage = (event) => {
 
 ws.onerror = (err) => {
     console.error("WebSocket error:", err);
+    statusEl.textContent = `WebSocket error for ${wsUrl}`;
+    statusEl.style.color = "#ff6b6b";
 };
 
 ws.onclose = () => {
     console.log("WebSocket disconnected");
+    statusEl.textContent = `Disconnected from ${wsUrl}`;
+    statusEl.style.color = "#ffb347";
 };
 
 </script>

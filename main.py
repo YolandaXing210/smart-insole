@@ -1,75 +1,78 @@
-import json
+import argparse
 import asyncio
-import threading
-import websockets
-import paho.mqtt.client as mqtt
+import time
 
-# --- Store connected WebSocket clients ---
-clients = set()
+try:
+    import paho.mqtt.client as mqtt
+except ModuleNotFoundError as exc:
+    missing_package = exc.name or "a required package"
+    raise SystemExit(
+        "Missing dependency: "
+        f"{missing_package}\n"
+        "Install the project requirements with:\n"
+        "python3 -m pip install -r requirements.txt"
+    ) from exc
 
-# --- MQTT topic (MUST match Arduino) ---
-MQTT_TOPIC = "demihu/feeds/insole"   # change if needed
+from bridge_server import DashboardBridge
 
-# --- MQTT callbacks ---
-def on_connect(client, userdata, flags, rc):
-    print("Connected to HiveMQ broker")
-    client.subscribe(MQTT_TOPIC)
 
-def on_message(client, userdata, msg):
-    try:
-        values = [int(x) for x in msg.payload.decode().split(",")]
-    except Exception as e:
-        print("Parse error:", e)
-        return
+MQTT_TOPIC = "demihu/feeds/insole"
 
-    labels = [f"PD{i+1}" for i in range(len(values))]
 
-    print(" | ".join(f"{label:^8}" for label in labels))
-    print("-" * (len(labels) * 11))
-    print(" | ".join(f"{value:^8}" for value in values))
-    print("\n\n")
-
-    # safe async handoff
-    asyncio.run_coroutine_threadsafe(
-        send_to_clients(values),
-        loop
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="MQTT WebSocket bridge for the smart insole dashboard."
     )
+    parser.add_argument(
+        "--ws-host",
+        default="127.0.0.1",
+        help="Host interface for the WebSocket server. Default: 127.0.0.1",
+    )
+    parser.add_argument(
+        "--ws-port",
+        type=int,
+        default=6790,
+        help="Port for the WebSocket server. Default: 6790",
+    )
+    return parser.parse_args()
 
-async def send_to_clients(values):
-    if clients:
-        message = json.dumps(values)
-        await asyncio.gather(*[c.send(message) for c in clients])
 
-# --- MQTT client setup (NO AUTH for HiveMQ public broker) ---
-mqtt_client = mqtt.Client()
-mqtt_client.on_connect = on_connect
-mqtt_client.on_message = on_message
+def build_mqtt_worker(bridge):
+    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
-mqtt_client.connect("broker.hivemq.com", 1883, 60)
+    def on_connect(client, userdata, flags, reason_code, properties):
+        print("Connected to HiveMQ broker")
+        client.subscribe(MQTT_TOPIC)
 
-# --- WebSocket server handler ---
-async def ws_handler(websocket):
-    clients.add(websocket)
-    print("WebSocket client connected")
-    try:
-        async for _ in websocket:
-            pass
-    finally:
-        clients.remove(websocket)
-        print("WebSocket client disconnected")
+    def on_message(client, userdata, msg):
+        try:
+            values = [int(x) for x in msg.payload.decode().split(",")]
+        except Exception as exc:
+            print("Parse error:", exc)
+            return
+
+        bridge.print_values(values)
+        bridge.push_values(values)
+
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_message = on_message
+
+    def mqtt_loop():
+        while True:
+            try:
+                mqtt_client.connect("broker.hivemq.com", 1883, 60)
+                mqtt_client.loop_forever()
+            except Exception as exc:
+                print(f"MQTT reconnecting after error: {exc}")
+                time.sleep(3)
+
+    return mqtt_loop
+
 
 async def main():
-    global loop
-    loop = asyncio.get_running_loop()
+    args = parse_args()
+    bridge = DashboardBridge(ws_host=args.ws_host, ws_port=args.ws_port)
+    await bridge.run(build_mqtt_worker(bridge), "MQTT mode")
 
-    # WebSocket server
-    server = await websockets.serve(ws_handler, "localhost", 6790)
-    print("WebSocket server running on ws://localhost:6790")
 
-    # MQTT loop in background thread
-    threading.Thread(target=mqtt_client.loop_forever, daemon=True).start()
-
-    await asyncio.Future()
-
-# --- Run ---
 asyncio.run(main())
