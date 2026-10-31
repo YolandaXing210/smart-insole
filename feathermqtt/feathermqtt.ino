@@ -160,14 +160,14 @@ static uint16_t analogReadTXDirect() {
 #define LED1 10
 #define LED2 11
 
-// Photodiodes
+// Photodiodes, named as in "Smart Shoe Sensor Layout.pdf" (pins checked on the shoe with a press test)
 #define PD1 A2
 #define PD2 A1
-#define PD3 3 //TX
-#define PD4 4 //RX
+#define PD3 PIN_SERIAL1_TX  // TX. PD3 and PD8 fibers are dead, so TX vs A0 between them is unconfirmed
+#define PD4 A3
 #define PD5 A4
 #define PD6 A5
-#define PD7 A3
+#define PD7 PIN_SERIAL1_RX  // RX
 #define PD8 A0
 
 const uint8_t pdPins[] = { PD1, PD2, PD3, PD4, PD5, PD6, PD7, PD8 };
@@ -257,12 +257,13 @@ for (uint8_t i = 0; i < NUM_PDS; i++) {
   //int value = analogRead(pdPins[i]);
   int value;
 
-    if (i == 2) {
-      value = analogReadRXDirect();   // PD3 → RX
-    } 
-    else if (i == 3) {
-      value = analogReadTXDirect();   // PD4 → TX
-    } 
+    // RX/TX can't use analogRead(), so they go through the direct ADC reads
+    if (pdPins[i] == PIN_SERIAL1_RX) {
+      value = analogReadRXDirect();
+    }
+    else if (pdPins[i] == PIN_SERIAL1_TX) {
+      value = analogReadTXDirect();
+    }
     else {
       value = analogRead(pdPins[i]);
     }
