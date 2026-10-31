@@ -84,8 +84,8 @@ Adafruit_MQTT_Client mqtt(&client, AIO_SERVER, AIO_SERVERPORT, AIO_USERNAME, AIO
 // REPLACE ME IO FEED NAME
 Adafruit_MQTT_Publish insole = Adafruit_MQTT_Publish(&mqtt, "demihu/feeds/insole");
 
-// Setup a feed called 'onoff' for subscribing to changes.
-Adafruit_MQTT_Subscribe onoffbutton = Adafruit_MQTT_Subscribe(&mqtt, "demihu/feeds/onoff");
+// (The example's 'onoff' subscription was removed: checking it blocked the loop for
+// 100 ms every reading, which capped sampling at ~10 per second.)
 
 /****************************** RX/TX Setup ***************************************/
 static constexpr uint8_t kPortAGroup = 0;
@@ -173,7 +173,22 @@ static uint16_t analogReadTXDirect() {
 const uint8_t pdPins[] = { PD1, PD2, PD3, PD4, PD5, PD6, PD7, PD8 };
 const char* pdNames[] = { "PD1", "PD2", "PD3", "PD4", "PD5", "PD6", "PD7", "PD8"};
 const uint8_t NUM_PDS  = 8;
-char payload[64];   // CSV buffer for MQTT
+
+// Sample all photodiodes every SAMPLE_PERIOD_US and publish them in batches, so the
+// shoe is read 100 times a second while the network carries ~12 messages a second.
+// Message format: samples separated by ';', each "millis,PD1,...,PD8".
+const uint32_t SAMPLE_PERIOD_US = 10000;  // 100 Hz
+const uint8_t BATCH_SIZE = 8;             // at most 51 chars per sample; the MQTT buffer is 512 bytes incl. topic
+
+char payload[448];   // batch buffer for MQTT
+size_t payloadLen = 0;
+uint8_t batchCount = 0;
+uint32_t nextSampleUs = 0;
+
+// once-a-second status for the Serial Monitor
+uint32_t statsStartMs = 0;
+uint16_t sentSamples = 0;
+uint16_t failedBatches = 0;
 
 
 void setup() {
@@ -222,71 +237,74 @@ Serial.println();
 
   disconnectSerial1Pads();
   routeRxTxPadsToAdc();
-
-  mqtt.subscribe(&onoffbutton);
 }
-
-// blank string for MQTT
-uint32_t x=0;
 
 void loop() {
+  // Wait for the next sample time. After a long stall (e.g. a reconnect) restart the
+  // clock instead of firing a burst of catch-up samples.
+  const uint32_t now = micros();
+  if ((int32_t)(now - nextSampleUs) < 0) return;
+  nextSampleUs = (now - nextSampleUs > 5 * SAMPLE_PERIOD_US) ? now + SAMPLE_PERIOD_US
+                                                             : nextSampleUs + SAMPLE_PERIOD_US;
+
+  appendSample();
+
+  if (++batchCount == BATCH_SIZE) {
+    publishBatch();
+  }
+
+  printStats();
+}
+
+int readPD(uint8_t i) {
+  // RX/TX can't use analogRead(), so they go through the direct ADC reads
+  if (pdPins[i] == PIN_SERIAL1_RX) {
+    return analogReadRXDirect();
+  }
+  if (pdPins[i] == PIN_SERIAL1_TX) {
+    return analogReadTXDirect();
+  }
+  return analogRead(pdPins[i]);
+}
+
+// Add "millis,PD1,...,PD8" to the batch (';' between samples).
+void appendSample() {
+  if (batchCount > 0) {
+    payload[payloadLen++] = ';';
+  }
+  payloadLen += snprintf(payload + payloadLen, sizeof(payload) - payloadLen, "%lu", millis());
+  for (uint8_t i = 0; i < NUM_PDS; i++) {
+    payloadLen += snprintf(payload + payloadLen, sizeof(payload) - payloadLen, ",%d", readPD(i));
+  }
+}
+
+void publishBatch() {
   // Ensure the connection to the MQTT server is alive (this will make the first
-  // connection and automatically reconnect when disconnected).  See the MQTT_connect
-  // function definition further below.
+  // connection and automatically reconnect when disconnected).
   MQTT_connect();
 
-  // this is our 'wait for incoming subscription packets' busy subloop
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(100))) { // change this to increase speed
-    if (subscription == &onoffbutton) {
-      Serial.print(F("Got: "));
-      Serial.println((char *)onoffbutton.lastread);
-
-      if (0 == strcmp((char *)onoffbutton.lastread, "OFF")) {
-        digitalWrite(LEDPIN, LOW);
-      }
-      if (0 == strcmp((char *)onoffbutton.lastread, "ON")) {
-        digitalWrite(LEDPIN, HIGH);
-      }
-    }
+  if (insole.publish(payload)) {
+    sentSamples += batchCount;
+  } else {
+    failedBatches++;
   }
 
-  payload[0] = '\0';  // reset CSV buffer
-
-for (uint8_t i = 0; i < NUM_PDS; i++) {
-  //int value = analogRead(pdPins[i]);
-  int value;
-
-    // RX/TX can't use analogRead(), so they go through the direct ADC reads
-    if (pdPins[i] == PIN_SERIAL1_RX) {
-      value = analogReadRXDirect();
-    }
-    else if (pdPins[i] == PIN_SERIAL1_TX) {
-      value = analogReadTXDirect();
-    }
-    else {
-      value = analogRead(pdPins[i]);
-    }
-
-  char num[8];
-  snprintf(num, sizeof(num), "%d", value);
-  strncat(payload, num, sizeof(payload) - strlen(payload) - 1);
-
-  if (i < NUM_PDS - 1) {
-    strncat(payload, ",", sizeof(payload) - strlen(payload) - 1);
-  }
+  payloadLen = 0;
+  payload[0] = '\0';
+  batchCount = 0;
 }
 
-Serial.print(F("\nSending PD readings:"));
-Serial.print(payload);
-Serial.print("... ");
+void printStats() {
+  if (millis() - statsStartMs < 1000) return;
 
-if (!insole.publish(payload)) {
-  Serial.println(F("Failed"));
-} else {
-  Serial.println(F("OK!"));
-}
+  Serial.print(F("Samples sent in the last second: "));
+  Serial.print(sentSamples);
+  Serial.print(F("   failed batches: "));
+  Serial.println(failedBatches);
 
+  statsStartMs = millis();
+  sentSamples = 0;
+  failedBatches = 0;
 }
 
 // Function to connect and reconnect as necessary to the MQTT server.

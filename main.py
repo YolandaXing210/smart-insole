@@ -1,4 +1,5 @@
 import json
+import time
 import asyncio
 import threading
 import websockets
@@ -10,34 +11,54 @@ clients = set()
 # --- MQTT topic (MUST match Arduino) ---
 MQTT_TOPIC = "demihu/feeds/insole"   # change if needed
 
+# --- once-a-second printout ---
+stats = {"start": time.time(), "samples": 0}
+
 # --- MQTT callbacks ---
 def on_connect(client, userdata, flags, rc):
     print("Connected to HiveMQ broker")
     client.subscribe(MQTT_TOPIC)
 
+def parse_samples(payload):
+    """Firmware sends batches: samples separated by ';', each "millis,PD1,...,PD8".
+    Older firmware sends one "PD1,...,PD8" per message; it gets the arrival time instead."""
+    samples = []
+    for part in payload.split(";"):
+        values = [int(x) for x in part.split(",")]
+        if len(values) == 8:
+            values = [int(time.time() * 1000)] + values
+        if len(values) != 9:
+            raise ValueError(f"expected 8 or 9 numbers, got {len(values)}")
+        samples.append(values)
+    return samples
+
 def on_message(client, userdata, msg):
     try:
-        values = [int(x) for x in msg.payload.decode().split(",")]
+        samples = parse_samples(msg.payload.decode())
     except Exception as e:
         print("Parse error:", e)
         return
 
-    labels = [f"PD{i+1}" for i in range(len(values))]
-
-    print(" | ".join(f"{label:^8}" for label in labels))
-    print("-" * (len(labels) * 11))
-    print(" | ".join(f"{value:^8}" for value in values))
-    print("\n\n")
+    stats["samples"] += len(samples)
+    now = time.time()
+    if now - stats["start"] >= 1:
+        labels = [f"PD{i+1}" for i in range(8)]
+        print(f"{stats['samples'] / (now - stats['start']):.0f} samples/s, latest:")
+        print(" | ".join(f"{label:^8}" for label in labels))
+        print("-" * (len(labels) * 11))
+        print(" | ".join(f"{value:^8}" for value in samples[-1][1:]))
+        print("\n")
+        stats["start"], stats["samples"] = now, 0
 
     # safe async handoff
     asyncio.run_coroutine_threadsafe(
-        send_to_clients(values),
+        send_to_clients(samples),
         loop
     )
 
-async def send_to_clients(values):
+async def send_to_clients(samples):
     if clients:
-        message = json.dumps(values)
+        message = json.dumps({"samples": samples})
         await asyncio.gather(*[c.send(message) for c in clients])
 
 # --- MQTT client setup (NO AUTH for HiveMQ public broker) ---

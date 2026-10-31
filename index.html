@@ -96,7 +96,7 @@ body{
     gap:16px;
 }
 
-.calibrate-button{
+.panel-button{
 
     font-family:inherit;
     font-size:14px;
@@ -113,9 +113,51 @@ body{
     cursor:pointer;
 }
 
-.calibrate-button:disabled{
+.panel-button:disabled{
     background:#868686;
     cursor:default;
+}
+
+.replay-section{
+
+    flex:0 0 auto;
+
+    display:flex;
+    flex-direction:row;
+    flex-wrap:wrap;
+    align-items:center;
+
+    gap:12px;
+}
+
+.replay-controls{
+
+    flex:1 1 320px;
+
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+
+    gap:12px;
+}
+
+.replay-controls[hidden]{
+    display:none;
+}
+
+.speed-select{
+    font-family:inherit;
+    font-size:14px;
+    color:white;
+    background:#2a2a2a;
+    border:1px solid #555;
+    padding:8px;
+}
+
+.replay-slider{
+    flex:1;
+    min-width:80px;
+    accent-color:white;
 }
 
 .calibration-status{
@@ -217,10 +259,26 @@ body{
 
         <!-- CALIBRATION -->
         <div class="calibration-section">
-            <button id="zeroBtn" class="calibrate-button">SET 0%</button>
-            <button id="maxBtn" class="calibrate-button">SET 100%</button>
+            <button id="zeroBtn" class="panel-button">SET 0%</button>
+            <button id="maxBtn" class="panel-button">SET 100%</button>
             <div id="calibrationStatus" class="calibration-status">
                 Not calibrated: colors use a fixed range. Sit with feet off the ground and press SET 0%, then stand and press SET 100%.
+            </div>
+        </div>
+
+        <!-- REPLAY -->
+        <div class="replay-section">
+            <button id="replayBtn" class="panel-button">REPLAY LAST 10 S</button>
+            <div id="rateStatus" class="calibration-status">Waiting for data from the shoe…</div>
+            <div id="replayControls" class="replay-controls" hidden>
+                <button id="playBtn" class="panel-button">PAUSE</button>
+                <select id="speedSelect" class="speed-select">
+                    <option value="1">1×</option>
+                    <option value="0.25" selected>0.25×</option>
+                    <option value="0.1">0.1×</option>
+                </select>
+                <input id="replaySlider" class="replay-slider" type="range" min="0" max="1000" value="0">
+                <span id="replayTime" class="calibration-status" style="white-space:nowrap"></span>
             </div>
         </div>
 
@@ -550,8 +608,6 @@ const COP_TRAIL_SECONDS = 3;
 // below this peak (fraction of full scale) the foot counts as unloaded and no dot is drawn
 const COP_MIN_PEAK = 0.05;
 
-let copTrail = [];   // [time ms, x, y]
-
 // pressure-weighted average position over the visible (masked) foot
 function centerOfPressure(heatmap){
 
@@ -568,20 +624,19 @@ function centerOfPressure(heatmap){
     return peak > COP_MIN_PEAK * PRESSURE_FULL_SCALE ? [sx / sum, sy / sum] : null;
 }
 
-function updateCopTrail(cop){
-
-    const now = Date.now();
-
-    if(cop) copTrail.push([now, cop[0], cop[1]]);
-    copTrail = copTrail.filter(p => now - p[0] <= COP_TRAIL_SECONDS * 1000);
-}
-
-// trail of recent positions, plus a dot at the current one (none when unloaded)
-function copTraces(cop){
+// path: faint line for a whole replayed clip (empty when live); trail: [x, y] points of
+// the last few seconds; cop: dot at the current position (none when unloaded)
+function copTraces(trail, cop, path = []){
 
     return [
         {
-            x: copTrail.map(p => p[1]), y: copTrail.map(p => p[2]),
+            x: path.map(p => p[0]), y: path.map(p => p[1]),
+            type: "scatter", mode: "lines",
+            line: {color: "rgba(255,255,255,0.2)", width: 1},
+            hoverinfo: "skip", showlegend: false
+        },
+        {
+            x: trail.map(p => p[0]), y: trail.map(p => p[1]),
             type: "scatter", mode: "lines",
             line: {color: "rgba(255,255,255,0.6)", width: 2},
             hoverinfo: "skip", showlegend: false
@@ -767,26 +822,22 @@ function calibratedLoad(v, i){
 }
 
 // --------------------------------------------------
-// LIVE WEBSOCKET STREAM
+// SAMPLES AND HISTORY
 // --------------------------------------------------
+
+// The last HISTORY_SECONDS of samples are kept for REPLAY.
+const HISTORY_SECONDS = 10;
+
+let sampleHistory = [];   // {t: board time in ms, values: [PD1..PD8], cop: [x, y] or null}, oldest first
+
+const rateStatus = document.getElementById("rateStatus");
 
 function remap(value, inMin, inMax, outMin = 0, outMax = 100) {
     return ((value - inMin) / (inMax - inMin)) * (outMax - outMin) + outMin;
 }
 
-const ws = new WebSocket("ws://localhost:6790");
-
-ws.onopen = () => {
-    console.log("WebSocket connected to Python backend");
-};
-
-ws.onmessage = (event) => {
-
-    const values = JSON.parse(event.data);
-
-    if (!Array.isArray(values) || values.length !== 8) return;
-
-    if (capture) capture.push(values);
+// raw PD1..PD8 readings -> 0-100 load per fiber, keyed for the heatmap
+function toWeights(values){
 
     // notes for testing
     // pd7 and pd8 dead on skate; always reading about 620-625
@@ -807,7 +858,7 @@ ws.onmessage = (event) => {
     return clamp(remap(v, 1500, 630), 0, 100); // for better visualization, map this from the actual max ur getting to the actual min
 });
 
-    weights_right = {
+    return {
         pd1: normalized[0],
         pd2: normalized[1],
         pd3: normalized[2],
@@ -817,38 +868,195 @@ ws.onmessage = (event) => {
         pd7: normalized[6],
         pd8: normalized[7],
     };
+}
 
-    // optional: keep left foot empty
-    weights_left = {
-        pd1: 0.000001,
-        pd2: 0.000001,
-        pd3: 0.000001,
-        pd4: 0.000001,
-        pd5: 0.000001,
-        pd6: 0.000001,
-        pd7: 0.000001,
-        pd8: 0.000001,
-    };
+function copOf(values){
+    return centerOfPressure(generateHeatmap(lines_right, toWeights(values)));
+}
 
-    const rightHeatmap = generateHeatmap(lines_right, weights_right);
-    const cop = centerOfPressure(rightHeatmap);
-    updateCopTrail(cop);
+function addSample(t, values){
+
+    if (capture) capture.push(values);
+
+    // the board restarted (its clock went backwards): start a new history
+    if (sampleHistory.length && t < sampleHistory[sampleHistory.length - 1].t - 1000) sampleHistory = [];
+
+    sampleHistory.push({t, values, cop: copOf(values)});
+    while (sampleHistory[0].t < t - HISTORY_SECONDS * 1000) sampleHistory.shift();
+}
+
+// center-of-pressure points from the COP_TRAIL_SECONDS up to time t
+function trailBefore(samples, t){
+    return samples
+        .filter(s => s.cop && s.t <= t && s.t > t - COP_TRAIL_SECONDS * 1000)
+        .map(s => s.cop);
+}
+
+// The left foot is a placeholder and keeps its initial (empty) plot.
+function renderRight(values, cop, trail, path = []){
+
+    weights_right = toWeights(values);
 
     Plotly.react("rightFoot",
-        [rightHeatmap, ...copTraces(cop)],
+        [generateHeatmap(lines_right, weights_right), ...copTraces(trail, cop, path)],
         footLayout);
 
     Plotly.react("rightBars",
         makeBarData(weights_right),
         barLayout);
+}
 
-    Plotly.react("leftFoot",
-        [generateHeatmap(lines_left, weights_left)],
-        footLayout);
+function renderLive(){
 
-    Plotly.react("leftBars",
-        makeBarData(weights_left),
-        barLayout);
+    const latest = sampleHistory[sampleHistory.length - 1];
+    renderRight(latest.values, latest.cop, trailBefore(sampleHistory, latest.t));
+
+    const perSecond = sampleHistory.filter(s => s.t > latest.t - 1000).length;
+    rateStatus.textContent = `Receiving ${perSecond} samples/s`;
+}
+
+// --------------------------------------------------
+// REPLAY
+// --------------------------------------------------
+
+// REPLAY copies the last HISTORY_SECONDS and plays them back, slowed down if wanted,
+// while live data keeps being recorded in the background.
+const REPLAY_MAX_FPS = 30;
+
+let replay = null;   // {clip, path, start, end, pos (board ms), speed, playing, lastFrame, lastDraw, drawnPos}
+
+const replayBtn = document.getElementById("replayBtn");
+const replayControls = document.getElementById("replayControls");
+const playBtn = document.getElementById("playBtn");
+const speedSelect = document.getElementById("speedSelect");
+const replaySlider = document.getElementById("replaySlider");
+const replayTime = document.getElementById("replayTime");
+
+replayBtn.onclick = () => replay ? stopReplay() : startReplay();
+
+function startReplay(){
+
+    if (sampleHistory.length < 2){
+        rateStatus.textContent = "Nothing to replay yet.";
+        return;
+    }
+
+    // recompute positions with the current calibration
+    const clip = sampleHistory.map(s => ({t: s.t, values: s.values, cop: copOf(s.values)}));
+
+    replay = {
+        clip,
+        path: clip.filter(s => s.cop).map(s => s.cop),
+        start: clip[0].t,
+        end: clip[clip.length - 1].t,
+        pos: clip[0].t,
+        speed: Number(speedSelect.value),
+        playing: true,
+        lastFrame: performance.now(),
+        lastDraw: 0,
+        drawnPos: null
+    };
+
+    replayBtn.textContent = "BACK TO LIVE";
+    replayControls.hidden = false;
+    rateStatus.hidden = true;
+    updatePlayButton();
+
+    requestAnimationFrame(replayFrame);
+}
+
+function stopReplay(){
+
+    replay = null;
+
+    replayBtn.textContent = "REPLAY LAST 10 S";
+    replayControls.hidden = true;
+    rateStatus.hidden = false;
+
+    if (sampleHistory.length) renderLive();
+}
+
+function replayFrame(now){
+
+    if (!replay) return;
+
+    if (replay.playing){
+        replay.pos += (now - replay.lastFrame) * replay.speed;
+        if (replay.pos >= replay.end){
+            replay.pos = replay.end;
+            replay.playing = false;
+            updatePlayButton();
+        }
+    }
+    replay.lastFrame = now;
+
+    if (replay.pos !== replay.drawnPos && now - replay.lastDraw >= 1000 / REPLAY_MAX_FPS){
+        replay.lastDraw = now;
+        drawReplay();
+    }
+
+    requestAnimationFrame(replayFrame);
+}
+
+function drawReplay(){
+
+    const {clip, pos, start, end} = replay;
+
+    // last sample at or before pos
+    const next = clip.findIndex(s => s.t > pos);
+    const s = clip[Math.max(0, (next === -1 ? clip.length : next) - 1)];
+
+    renderRight(s.values, s.cop, trailBefore(clip, s.t), replay.path);
+
+    replaySlider.value = Math.round(1000 * (pos - start) / (end - start || 1));
+    replayTime.textContent = `${((pos - start) / 1000).toFixed(2)} / ${((end - start) / 1000).toFixed(2)} s`;
+    replay.drawnPos = pos;
+}
+
+function updatePlayButton(){
+    playBtn.textContent = replay.playing ? "PAUSE" : "PLAY";
+}
+
+playBtn.onclick = () => {
+    if (!replay.playing && replay.pos >= replay.end) replay.pos = replay.start;   // play again from the start
+    replay.playing = !replay.playing;
+    replay.lastFrame = performance.now();
+    updatePlayButton();
+};
+
+speedSelect.onchange = () => {
+    if (replay) replay.speed = Number(speedSelect.value);
+};
+
+replaySlider.oninput = () => {
+    replay.playing = false;
+    updatePlayButton();
+    replay.pos = replay.start + (replay.end - replay.start) * replaySlider.value / 1000;
+};
+
+// --------------------------------------------------
+// LIVE WEBSOCKET STREAM
+// --------------------------------------------------
+
+const ws = new WebSocket("ws://localhost:6790");
+
+ws.onopen = () => {
+    console.log("WebSocket connected to Python backend");
+};
+
+ws.onmessage = (event) => {
+
+    const data = JSON.parse(event.data);
+
+    // main.py sends {samples: [[board ms, PD1..PD8], ...]}; an older main.py sends one [PD1..PD8]
+    const samples = Array.isArray(data) ? [[Date.now(), ...data]] : data.samples;
+    if (!Array.isArray(samples)) return;
+
+    for (const s of samples){
+        if (Array.isArray(s) && s.length === 9) addSample(s[0], s.slice(1));
+    }
+
+    if (sampleHistory.length && !replay) renderLive();
 };
 
 ws.onerror = (err) => {
