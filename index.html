@@ -85,6 +85,44 @@ body{
     margin-bottom: 5%;
 }
 
+.calibration-section{
+
+    flex:0 0 auto;
+
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+
+    gap:16px;
+}
+
+.calibrate-button{
+
+    font-family:inherit;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:2px;
+
+    color:black;
+    background:white;
+
+    border:none;
+    padding:10px 18px;
+    white-space:nowrap;
+
+    cursor:pointer;
+}
+
+.calibrate-button:disabled{
+    background:#868686;
+    cursor:default;
+}
+
+.calibration-status{
+    font-size:14px;
+    color:#868686;
+}
+
 .reading-section{
 
     flex:1;
@@ -174,6 +212,15 @@ body{
             <div class="bodytext">
                 Spring 2026. Gait-tracking insoles using a grid of fiber-optic cables developed by Dr. Jeyeon Jo under Dr. Heeju Terry Park.
                 Data visualization developed by Demi Hu, Swar Sahgal, and Doyeon Kong. 
+            </div>
+        </div>
+
+        <!-- CALIBRATION -->
+        <div class="calibration-section">
+            <button id="zeroBtn" class="calibrate-button">SET 0%</button>
+            <button id="maxBtn" class="calibrate-button">SET 100%</button>
+            <div id="calibrationStatus" class="calibration-status">
+                Not calibrated: colors use a fixed range. Sit with feet off the ground and press SET 0%, then stand and press SET 100%.
             </div>
         </div>
 
@@ -483,8 +530,69 @@ function generateHeatmap(linesObj, weightsMap){
         zsmooth: false,
         xgap: 1,
         ygap: 1,
+        // fixed range so colors mean the same load every frame (no auto-stretching)
+        zmin: 0,
+        zmax: PRESSURE_FULL_SCALE,
         showscale: false
     };
+}
+
+// one fully loaded crossing (PD2 x PD6) shows as the top color; more load saturates
+const PRESSURE_FULL_SCALE = Math.max(...buildPressure(lines_right, {
+    pd1: 0, pd2: 100, pd3: 0, pd4: 0, pd5: 0, pd6: 100, pd7: 0, pd8: 0,
+}).flat());
+
+// --------------------------------------------------
+// CENTER OF PRESSURE
+// --------------------------------------------------
+
+const COP_TRAIL_SECONDS = 3;
+// below this peak (fraction of full scale) the foot counts as unloaded and no dot is drawn
+const COP_MIN_PEAK = 0.05;
+
+let copTrail = [];   // [time ms, x, y]
+
+// pressure-weighted average position over the visible (masked) foot
+function centerOfPressure(heatmap){
+
+    let sum = 0, sx = 0, sy = 0, peak = 0;
+
+    heatmap.z.forEach((row, yi) => row.forEach((p, xi) => {
+        if(p === null) return;
+        sum += p;
+        sx += p * x[xi];
+        sy += p * y[yi];
+        peak = Math.max(peak, p);
+    }));
+
+    return peak > COP_MIN_PEAK * PRESSURE_FULL_SCALE ? [sx / sum, sy / sum] : null;
+}
+
+function updateCopTrail(cop){
+
+    const now = Date.now();
+
+    if(cop) copTrail.push([now, cop[0], cop[1]]);
+    copTrail = copTrail.filter(p => now - p[0] <= COP_TRAIL_SECONDS * 1000);
+}
+
+// trail of recent positions, plus a dot at the current one (none when unloaded)
+function copTraces(cop){
+
+    return [
+        {
+            x: copTrail.map(p => p[1]), y: copTrail.map(p => p[2]),
+            type: "scatter", mode: "lines",
+            line: {color: "rgba(255,255,255,0.6)", width: 2},
+            hoverinfo: "skip", showlegend: false
+        },
+        {
+            x: cop ? [cop[0]] : [], y: cop ? [cop[1]] : [],
+            type: "scatter", mode: "markers",
+            marker: {color: "white", size: 14, line: {color: "black", width: 2}},
+            hoverinfo: "skip", showlegend: false
+        }
+    ];
 }
 
 // --------------------------------------------------
@@ -557,6 +665,108 @@ Plotly.newPlot("rightBars",
 );
 
 // --------------------------------------------------
+// CALIBRATION
+// --------------------------------------------------
+
+// Two steps, in either order (pressed = lower reading):
+//   SET 0%:   wearer sits with both feet off the ground; each fiber's median reading is its 0%.
+//   SET 100%: wearer stands and shifts their weight around the whole foot; each fiber's
+//             most-pressed reading is its 100%, so the range fits this person's weight.
+// Light changes the readings too, so calibrate under the same light as the test.
+const ZERO_SECONDS = 3;
+const MAX_SECONDS = 10;
+// a fiber that moves less than this between 0% and 100% is treated as dead (readings jitter by about ±4)
+const MIN_CALIBRATION_RANGE = 20;
+
+let unloadedReading = null;   // [8] raw readings at 0%
+let loadedReading = null;     // [8] raw readings at 100%
+let calibration = null;       // {unloaded, loaded, live} once both steps are done
+let capture = null;           // raw readings collected during a calibration step
+
+const zeroBtn = document.getElementById("zeroBtn");
+const maxBtn = document.getElementById("maxBtn");
+const calibrationStatus = document.getElementById("calibrationStatus");
+
+zeroBtn.onclick = () => runCapture(ZERO_SECONDS, "Sit with both feet off the ground", samples => {
+    unloadedReading = channelPercentile(samples, 0.5);
+});
+
+maxBtn.onclick = () => runCapture(MAX_SECONDS, "Stand and shift your weight around the whole foot", samples => {
+    // 2nd percentile instead of the minimum, so one glitchy reading can't set the range
+    loadedReading = channelPercentile(samples, 0.02);
+});
+
+function runCapture(seconds, prompt, onDone){
+
+    capture = [];
+    zeroBtn.disabled = maxBtn.disabled = true;
+
+    const end = Date.now() + seconds * 1000;
+
+    const tick = setInterval(() => {
+        const secondsLeft = Math.ceil((end - Date.now()) / 1000);
+        if(secondsLeft > 0){
+            calibrationStatus.textContent = `${prompt} (${secondsLeft} s)`;
+            return;
+        }
+        clearInterval(tick);
+
+        const samples = capture;
+        capture = null;
+        zeroBtn.disabled = maxBtn.disabled = false;
+
+        if(samples.length < 5){
+            calibrationStatus.textContent = "That step failed: almost no data came in from the shoe. Try again.";
+            return;
+        }
+        onDone(samples);
+        updateCalibration();
+    }, 200);
+}
+
+function percentile(sorted, p){
+    return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+}
+
+// per-fiber percentile over a list of 8-value readings
+function channelPercentile(samples, p){
+    return [0, 1, 2, 3, 4, 5, 6, 7].map(i =>
+        percentile(samples.map(s => s[i]).sort((a, b) => a - b), p));
+}
+
+function updateCalibration(){
+
+    if(!unloadedReading || !loadedReading){
+        calibration = null;
+        calibrationStatus.textContent = unloadedReading
+            ? "0% set. Now stand and press SET 100%."
+            : "100% set. Now sit with feet off the ground and press SET 0%.";
+        return;
+    }
+
+    const live = unloadedReading.map((u, i) => u - loadedReading[i] >= MIN_CALIBRATION_RANGE);
+    calibration = {unloaded: unloadedReading, loaded: loadedReading, live};
+
+    const dead = live.flatMap((ok, i) => ok ? [] : [`PD${i + 1}`]);
+    calibrationStatus.textContent = dead.length
+        ? `Calibrated. No response from ${dead.join(", ")}, shown as 0.`
+        : "Calibrated.";
+}
+
+function clamp(v, lo, hi){
+    return Math.min(hi, Math.max(lo, v));
+}
+
+// 0-100 load for fiber i from its calibrated range
+function calibratedLoad(v, i){
+
+    if(!calibration.live[i]) return 0;
+
+    const {unloaded, loaded} = calibration;
+    return clamp(100 * (unloaded[i] - v) / (unloaded[i] - loaded[i]), 0, 100);
+}
+
+// --------------------------------------------------
 // LIVE WEBSOCKET STREAM
 // --------------------------------------------------
 
@@ -576,6 +786,7 @@ ws.onmessage = (event) => {
 
     if (!Array.isArray(values) || values.length !== 8) return;
 
+    if (capture) capture.push(values);
 
     // notes for testing
     // pd7 and pd8 dead on skate; always reading about 620-625
@@ -584,7 +795,8 @@ ws.onmessage = (event) => {
     // and when it is put into a dark environment it seems like it dips all the way down to 800 without pressure
     // and down to 630 even when without pressure which is an issue because then they read the same as the dead pds
     // and actual plantar pressure isn't enough to change the reading at all.
-    const normalized = values.map(v => {
+    // Until both calibration steps are done, this fixed mapping is used.
+    const normalized = calibration ? values.map(calibratedLoad) : values.map(v => {
     // the only reason to change this is to basically filter out "dead" photodiodes from the datavis. whatever ur get from pd7 and 8 put here.
     if (v < 630) return 0; // overall minimum number, anything below this means its pure black/no data. 
     
@@ -592,7 +804,7 @@ ws.onmessage = (event) => {
     // this doesn't affect your raw reading at all; reference that for ground truth still.
     // eg. if you put values 4000-1000 below but you're actually only receiving values 2000-1000, you'll just
     // get the lower end of the color gradient rather than the full dark red-yellow range, that's all.
-    return remap(v, 1500, 630); // for better visualization, map this from the actual max ur getting to the actual min
+    return clamp(remap(v, 1500, 630), 0, 100); // for better visualization, map this from the actual max ur getting to the actual min
 });
 
     weights_right = {
@@ -618,8 +830,12 @@ ws.onmessage = (event) => {
         pd8: 0.000001,
     };
 
+    const rightHeatmap = generateHeatmap(lines_right, weights_right);
+    const cop = centerOfPressure(rightHeatmap);
+    updateCopTrail(cop);
+
     Plotly.react("rightFoot",
-        [generateHeatmap(lines_right, weights_right)],
+        [rightHeatmap, ...copTraces(cop)],
         footLayout);
 
     Plotly.react("rightBars",
